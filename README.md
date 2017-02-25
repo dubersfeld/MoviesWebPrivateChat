@@ -51,6 +51,11 @@ source/production/resources/log4j2.xml: &lt;RollingFile name="WroxFileAppender" 
 
 where the folder /home/dominique should be replaced by a folder that matches your own file system.
 
+This project can be deployed on Tomcat with the context root: 
+
+localhost:8080/movies-web
+
+
 Note on authorities:
 
 I have predefined 5 authorities: VIEW, CREATE, UPDATE, DELETE, CHAT
@@ -76,4 +81,4 @@ Note that a given user is only allowed a single connection to a given chatroom, 
 In addition to the previous version any pair of users connected to the same static chat room can agree to create on the fly their own private chat session using a handshake protocol. This private session is only visible to the two users who created it. Like the static chat rooms it is bsed on WebSockets using Spring support and Javascript for the remote endpoint implementation. 
 
 
-Dominique Ubersfeld 
+Dominique Ubersfeld, Cachan, France 
