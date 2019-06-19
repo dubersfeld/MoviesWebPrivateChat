@@ -1,0 +1,151 @@
+<!DOCTYPE HTML>
+<html xmlns:th="http://www.thymeleaf.org"
+				xmlns:sec="http://www.thymeleaf.org/extras/spring-security">
+
+<head>
+ 
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+<title>Private Chat</title>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/sockjs-client/1.1.4/sockjs.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/stomp.js/2.3.3/stomp.js"></script>
+<script src="https://code.jquery.com/jquery-2.2.4.js"></script>
+
+<script type="text/javascript" th:inline="javascript">
+
+var chatRoomUrl = "" + /*[[${chatRoomUrl}]]*/;
+var username = "" + /*[[${username}]]*/; 
+
+var firstUser = /*[[${firstUser}]]*/;
+var secondUser = /*[[${secondUser}]]*/;
+var privateUsers = firstUser + "#" + secondUser;
+var privateURL = "/app/private/" + privateUsers;
+
+//var otherUser = (username == firstUser) ? secondUser : firstUser;
+
+console.log("username " + username );
+console.log("firstUser " + firstUser);
+console.log("secondUser " + secondUser);
+console.log("privateUsers " + privateUsers);
+console.log("otherUser " + otherUser);
+
+var stompClient = null;
+
+function setConnected(connected) {     	
+	$("button[id='connect']").prop('disabled', connected);               
+	$("button[id='disconnect']").prop('disabled', !connected);        
+	$("#conversationDiv").css('visibility', connected ? 'visible' : 'hidden');                
+	$("#welcomeChat").html(connected ? "You are connected" : "Please connect");                             
+	$("#response").html("");        
+}
+
+function connect() {
+	console.log("connect begin " + chatRoomUrl);
+	var socket = new SockJS(chatRoomUrl);  
+	stompClient = Stomp.over(socket);
+		console.log('Sator ' + chatRoomUrl);
+		stompClient.connect({}, function(frame) {
+		setConnected(true);
+		console.log('Connected');
+		stompClient.subscribe("/user/queue/private/" + privateUsers, function(messageOutput) {
+			showMessageOutput(JSON.parse(messageOutput.body));
+		});
+		console.log('privateURL ' + privateURL);
+	});
+}
+                 
+function disconnect() {        
+	if(stompClient != null) {
+    	stompClient.disconnect();        
+	}
+		setConnected(false);
+		console.log("Disconnected");        
+}
+
+function sendMessage() {
+	var from = username;
+ 	var text = $("#text").get(0).value;
+ 	var code = "PRIVATE";
+ 	var now = new Date();
+ 	var time = now.getHours() + ":" + now.getMinutes();
+	console.log("from: " + from);
+	console.log("text: " + text);
+	console.log("code: " + code);
+	console.log("sendMessage to privateURL: " + privateURL);
+  	if (text.trim().length > 0) {
+    	stompClient.send(privateURL, {}, 
+    	JSON.stringify({'from':from, 'text':text, 'code':code, 'time': time}));
+	}        
+}
+
+function showMessageOutput(messageOutput) {
+	var response = $("#response").get(0);
+	var chatLog = $("#chatLog").get(0);
+                
+		switch (messageOutput.code) {
+    	case 'JOINED':
+        	var msg = messageOutput.from + " " + /*[[#{chat.joined}]]*/
+                        + " (" + messageOutput.time + ")";
+            $('<p></p>').text(msg).css("color", "Blue").appendTo(response);
+            break;
+        case 'LEFT':
+            var msg = messageOutput.from + " " + /*[[#{chat.left}]]*/
+                + " (" + messageOutput.time + ")";
+            $('<p></p>').text(msg).css("color", "Green").appendTo(response);               
+            break;
+        case 'PRIVATE':
+            var msg = messageOutput.from + ": " 
+                    + messageOutput.text + " (" + messageOutput.time + ")";  
+            $('<p></p>').text(msg).css("color", "Black").appendTo(chatLog);	
+            break;
+        default:
+	}// switch        
+}   
+            
+</script> 
+
+<link rel="stylesheet" href="http://cdnjs.cloudflare.com/ajax/libs/twitter-bootstrap/2.3.1/css/bootstrap.min.css" />
+<link rel="stylesheet" th:href="@{/css/main.css}" />
+<link rel="stylesheet" th:href="@{/css/chat.css}" />    	
+</head>
+
+<body onload="connect()">   	
+    <br/>
+    <div id="chatContainer">
+		<h1><span th:text="#{welcome} + ' '"></span><span sec:authentication="name"></span><span th:text="' to private chat with ' + ${otherUser}"></span></h1>
+  	
+  		<br />
+  		<p id="welcomeChat" th:text="#{chat.connect.please}"></p>			
+  		<br /><br />
+        <div>
+          <input type="hidden" id="from" th:value="${username}" />
+        </div>
+        <br />
+      
+        <div id="chatLog">
+        </div>
+        <div id="buttonContainer">
+          <button id="connect" onclick="connect();"><span th:text="#{chat.connect}"></span></button>
+          <button id="disconnect" onclick="disconnect();"><span th:text="#{chat.disconnect}"></span></button>
+        </div>
+        <div id="conversationDiv">
+          <input type="text" id="text" th:placeholder="#{chat.write}"/>
+          <button id="sendMessage" onclick="sendMessage();"><span th:text="#{chat.send}"></span></button>
+          <p id="response"></p>
+        </div>
+    </div>
+        
+    <!--div id="modalError" class="modal hide fade">
+        <div class="modal-header">
+            <button type="button" class="close" data-dismiss="modal">&times;</button>
+            <h3><span th:text="#{window.chat.error}"></span></h3>
+        </div>
+        <div class="modal-body" id="modalErrorBody"><span th:text="#{error.unknown}"></span>
+        </div>
+        <div class="modal-footer">
+                <button class="btn btn-primary" data-dismiss="modal"><span th:text="#{error.dismiss}"></span></button>
+        </div>
+    </div-->
+           
+</body>
+</html>

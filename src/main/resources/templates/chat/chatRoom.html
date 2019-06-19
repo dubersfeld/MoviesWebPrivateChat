@@ -1,0 +1,341 @@
+<!DOCTYPE HTML>
+<html xmlns:th="http://www.thymeleaf.org"
+				xmlns:sec="http://www.thymeleaf.org/extras/spring-security">
+
+<head>
+ 
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+   
+<title>Chat Room</title>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/sockjs-client/1.1.4/sockjs.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/stomp.js/2.3.3/stomp.js"></script>
+<script src="https://code.jquery.com/jquery-2.2.4.js"></script>
+
+<script type="text/javascript" th:inline="javascript">
+ 
+	var stompClient = null;
+	var toto = true;
+            
+	var username = "" + /*[[${username}]]*/;        
+	var chatRoomId = "" + /*[[${chatRoomId}]]*/;         
+	var chatRoomUrl = "" + /*[[${chatRoomUrl}]]*/;
+	var privateChatRoomUrl = "" + /*[[${privateChatRoomUrl}]]*/;
+                          
+	var subscribeURL = "/topic/messages/" + chatRoomId;
+	var queueURL = "/user/" + username + "/queue/messages/" + chatRoomId;   
+	var chatURL = "/app/chat/" + chatRoomId;
+                           
+	console.log("chatRoomUrl " + chatRoomUrl);
+	console.log("username " + username);
+	console.log("subscribeURL " + subscribeURL);
+	console.log("chatURL " + chatURL);    
+	
+	function postInvisibleForm(url, fields) {
+    	var form = $('<form id="mapForm" method="post"></form>')
+                 .attr({ action: url, style: 'display: none;' });           
+        for (var key in fields) {
+        	if (fields.hasOwnProperty(key))
+            	form.append($('<input type="hidden">').attr({
+                     name: key, value: fields[key]
+            	}));
+        }
+        form.append($('<input type="hidden">').attr({
+             name: [[${_csrf.parameterName}]], value: [[${_csrf.token}]]
+        }));
+        $('body').append(form);
+        
+        form.submit();
+    }
+	        
+	function setConnected(connected) {     	
+		$("button[id='connect']").prop('disabled', connected);               
+		$("button[id='disconnect']").prop('disabled', !connected);        
+		$("#conversationDiv").css('visibility', connected ? 'visible' : 'hidden');                
+		$("#welcomeChat").html(connected ? "You are connected" : "Please connect");                             
+		$("#response").html("");        
+	}
+                     
+	function connect() {
+		var socket = new SockJS(chatRoomUrl);  
+		stompClient = Stomp.over(socket);
+   		console.log('Sator ' + chatRoomUrl);
+                
+   		stompClient.connect({}, function(frame) {
+    		setConnected(true);
+    		console.log('Connected');
+   			stompClient.subscribe(subscribeURL, function(messageOutput) {
+    			showMessageOutput(JSON.parse(messageOutput.body));
+    		});
+   			stompClient.subscribe("/user/queue/messages/" + chatRoomId, function(messageOutput) {
+    			showMessageOutput(JSON.parse(messageOutput.body));
+    		});
+    		console.log('chatURL ' + chatURL);
+    	});
+	}
+                     
+	function disconnect() {        
+		if(stompClient != null) {
+        	stompClient.disconnect();        
+		}
+ 		setConnected(false);
+  		console.log("Disconnected");        
+	}
+                     
+	function sendMessage() {
+    	var from = $("#from").get(0).value;
+     	var text = $("#text").get(0).value;
+     	var code = "NORMAL";
+     	var now = new Date();
+     	var time = now.getHours() + ":" + now.getMinutes();
+    	console.log("from: " + from);
+    	console.log("text: " + text);
+    	console.log("code: " + code);
+   		console.log("chatURL: " + chatURL);
+   		console.log("sendMessage to chatURL: " + chatURL);
+   	  
+      	if (text.trim().length > 0) {
+        	stompClient.send(chatURL, {}, 
+        	JSON.stringify({'from':from, 'text':text, 'code':code, 'time': time}));
+    	}        
+	}
+                     
+	function showMessageOutput(messageOutput) {
+    	var response = $("#response").get(0);
+    	var chatLog = $("#chatLog").get(0);
+                    
+   		switch (messageOutput.code) {
+        	case 'JOINED':
+            	var msg = messageOutput.from + " " + /*[[#{chat.joined}]]*/
+                            + " (" + messageOutput.time + ")";
+                $('<p></p>').text(msg).css("color", "Blue").appendTo(response);
+                break;
+            case 'LEFT':
+                var msg = messageOutput.from + " " + /*[[#{chat.left}]]*/
+                    + " (" + messageOutput.time + ")";
+                $('<p></p>').text(msg).css("color", "Green").appendTo(response);               
+                break;
+            case 'NORMAL':
+                var msg = messageOutput.from + ": " 
+                        + messageOutput.text + " (" + messageOutput.time + ")";  
+                $('<p></p>').text(msg).css("color", "Black").appendTo(chatLog);	
+                break;
+            case 'PRIVATE_CHAT_REQUEST':
+            	console.log("privateRequest for " + messageOutput.text + " " + username);
+            	if (username == messageOutput.text) {
+            		addRequest(messageOutput.from);
+            	}
+            	break;
+            case 'NOT_CONNECTED':
+            	console.log("Not connected " + messageOutput.text);
+            	$("#privateDisp").text("Not connected").css("color", "Red");
+            	break;
+            case 'CONNECTED':
+            	console.log("Connected " + messageOutput.text);       
+            	break;
+            case 'PRIVATE_CHAT_REJECT':
+            	console.log("Rejected by " + messageOutput.text);
+            	$("#privateDisp").text("Rejected").css("color", "Red");
+            	break;
+            case 'PRIVATE_CHAT_ACCEPT':
+            	console.log("Accepted by " + messageOutput.text);
+            	$("#privateDisp").text("Accepted").css("color", "Green");
+            	addAccept(messageOutput.text);
+            	break;
+          
+            	
+            default:
+		}// switch        
+	}   
+	
+    function requestPrivate() { 
+    	console.log("requestPrivate begin");
+    	$("#privateDisp").text("");
+        if ($("#otherUser").get(0).value.trim().length > 0) {
+            var from = $("#from").get(0).value;
+         	var text = $("#otherUser").get(0).value;
+         	var code = "PRIVATE_CHAT_REQUEST";
+           	var now = new Date();
+         	var time = now.getHours() + ":" + now.getMinutes();
+        	console.log("from: " + from);
+        	console.log("text: " + text);
+        	console.log("code: " + code);
+       		console.log("chatURL: " + chatURL);
+          	// actual send
+            stompClient.send("/app/service/1", {}, 
+            JSON.stringify({'from':from, 'text':text, 'code':code, 'time': time}));
+        }           
+    }
+    
+    function addRequest(user) {
+    	console.log("addRequest begin");
+        var tBody = document.getElementById("tbody");
+        var newRow = document.createElement("tr");
+        newRow.id = "chatrq_" + user;
+        var newUserData = document.createElement("td");
+        var newAcceptData = document.createElement("td");
+        var newRejectData = document.createElement("td");
+        var newUser = document.createTextNode(user);
+        newUserData.appendChild(newUser);
+        newRow.appendChild(newUserData); 
+
+        var aButton = document.createElement("input");
+        aButton.type = "button";
+        aButton.value = "accept";
+        aButton.onclick = function(event) { acceptChat(user); return false; }
+        newAcceptData.appendChild(aButton);
+        newRow.appendChild(newAcceptData); 
+
+        var rButton = document.createElement("input");
+        rButton.type = "button";
+        rButton.value = "reject";
+        rButton.onclick = function(event) { rejectChat(user); return false; }
+        newRejectData.appendChild(rButton);
+        newRow.appendChild(newRejectData); 
+                
+        tBody.appendChild(newRow); 
+    }
+    
+    function rejectChat(otherUser) {             
+    	var rejRow = document.getElementById("chatrq_" + otherUser);
+    	rejRow.parentNode.removeChild(rejRow);
+        // step 1: send reject back to otherUser
+        var from = $("#from").get(0).value;
+        var text = otherUser;
+        var code = "PRIVATE_CHAT_REJECT";
+        var now = new Date();
+        var time = now.getHours() + ":" + now.getMinutes();
+        console.log("from: " + from);
+        console.log("text: " + text);
+        console.log("code: " + code);
+       	console.log("chatURL: " + chatURL);
+     	// actual send
+        stompClient.send("/app/service/1", {}, 
+        JSON.stringify({'from':from, 'text':text, 'code':code, 'time': time}));
+
+	}
+    
+    function acceptChat(otherUser) {
+    	console.log("acceptChat begin");
+        // step 1: send accept back to otherUser
+        var from = $("#from").get(0).value;
+        var text = otherUser
+        var code = "PRIVATE_CHAT_ACCEPT";
+        var now = new Date();
+        var time = now.getHours() + ":" + now.getMinutes();
+        console.log("from: " + from);
+        console.log("text: " + text);
+        console.log("code: " + code);
+       	console.log("serviceURL: " + "/app/service/1");
+     	// actual send
+        stompClient.send("/app/service/1", {}, 
+        JSON.stringify({'from':from, 'text':text, 'code':code, 'time': time}));
+
+   		console.log("first " + otherUser + " second " + username);
+        var privateChatId = otherUser + "#" + username;
+   		// step 2: connect to the new PrivateChatSession
+        //var newLink = '<c:url value="/privateChat/join" />';
+        var newLink = privateChatRoomUrl + "/join";
+    	console.log("newLink: " + newLink);
+        disconnect();
+        postInvisibleForm(newLink, {"firstUser": otherUser, "secondUser": username});                	
+    }
+    
+    function joinPrivate(username, otherUser) {
+    	var newLink = privateChatRoomUrl + "/join";
+       	console.log("newLink: " + newLink);
+       	disconnect();
+    	postInvisibleForm(newLink, {"firstUser": username, "secondUser": otherUser} );
+    }
+    
+    function addAccept(otherUser) {
+        var newL = "javascript:void 0;";            	
+        var newLink = document.createElement("a");
+        newLink.setAttribute('href', newL);
+        newLink.innerHTML = otherUser;
+        newLink.addEventListener("click", 
+        	function(event) { joinPrivate(username, otherUser); return false; });
+        var taBody = document.getElementById("atbody");
+        var newRow = document.createElement("tr");
+        var newAccept = document.createElement("td");
+        newAccept.appendChild(newLink);
+        newRow.appendChild(newAccept);
+        taBody.appendChild(newRow);
+}
+</script>
+
+<link rel="stylesheet" href="http://cdnjs.cloudflare.com/ajax/libs/twitter-bootstrap/2.3.1/css/bootstrap.min.css" />
+<link rel="stylesheet" th:href="@{/css/main.css}" />
+<link rel="stylesheet" th:href="@{/css/chat.css}" />  
+</head>
+
+
+<body onload="disconnect()">
+  <div id="mainContainer">
+    <div sec:authorize="hasAuthority('CHAT')" id="tableRow">
+      <div id="chatContainer">
+		<h1><span th:text="#{welcome} + ' '"></span><span sec:authentication="name"></span></h1>
+  		<br />
+  		<p id="welcomeChat" th:text="#{chat.connect.please}"></p>			
+  		<br /><br />
+        <div>
+          <input type="hidden" id="from" th:value="${username}" />
+        </div>
+        <br />
+        <div id="chatLog">
+        </div>
+        <div id="buttonContainer">
+          <button id="connect" onclick="connect();"><span th:text="#{chat.connect}"></span></button>
+          <button id="disconnect" disabled="disabled" onclick="disconnect();"><span th:text="#{chat.disconnect}"></span></button>
+        </div>
+        <br />
+        <div id="conversationDiv">
+          <input type="text" id="text" th:placeholder="#{chat.write}"/>
+          <button id="sendMessage" onclick="sendMessage();"><span th:text="#{chat.send}"></span></button>
+          <p id="response"></p>
+        </div>
+      </div>
+      <div id="sidebar">
+        <h2><span th:text="#{title.chat.privateInvitations}"></span></h2>
+        <div id="chatRequests">              	          
+          <table>
+            <tbody id="tbody">
+            </tbody>
+          </table>
+        </div>
+        <div id="requestPrivate">        
+          <div id="usernameContainer">
+            <span th:text="#{title.chat.selectOther}"></span><input type="text" name="otherUser" id="otherUser"><span id="privateDisp"></span>
+          </div>
+          <div id="privateButtonContainer">
+            <button class="btn btn-primary" onclick="requestPrivate();"><span th:text="#{chat.private.submit}"></span></button>
+          </div>
+        </div>
+        <div id="accepted">
+          <h2><span th:text="#{title.chat.accepted}"></span></h2>
+          <table>
+            <tbody id="atbody">
+           	</tbody>
+          </table>
+        </div>
+      </div>
+    </div> 
+    <div>
+    
+    </div>
+  </div>
+  
+  <div id="modalError" class="modal hide fade">
+    <div class="modal-header">
+        <button type="button" class="close" data-dismiss="modal">&times;</button>
+        <h3 th:text="#{window.chat.error}"></h3>
+    </div>
+    <div class="modal-body" id="modalErrorBody"><span th:text="#{error.chat.unknown}"></span>
+    </div>
+    <div class="modal-footer">
+        <button class="btn btn-primary" data-dismiss="modal"><span th:text="#{button.chat.error.dismiss}"></span></button>
+    </div>
+  </div>
+
+</body>
+</html>

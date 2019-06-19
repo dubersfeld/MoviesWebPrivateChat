@@ -1,16 +1,10 @@
 # MoviesWebPrivateChat
-Spring based Web site with CrudRepository support, Spring Security and dynamically created WebSocket based private chat sessions, running on Tomcat 8 with Maven build
+Spring based Web site with CrudRepository support, Spring Security and dynamically created WebSocket based private chat sessions
 
 This is a demonstration project on Spring development. It involves:
-MySQL as a database with Spring CrudRepository support 
-Eclipse Mars with Maven plugin as an IDE
-Tomcat 8 as a container
+MySQL as a database server 
 
 moviesDBChat.sql was used to generate the MySql database used in this project.
-
-This project can run on Tomcat 8 from Eclipse or on Tomcat 8 standalone from a .war file. It requires Java 8 Runtime Environment.
-
-This is the 7th version of this project and currently the last one.
 
 For the basic JDBC version of this project see the repository:
 
@@ -36,25 +30,6 @@ For the static chat room version of this project see the repository:
 
 https://github.com/dubersfeld/MoviesWebChat
 
-For a full tutorial about this project please visit my personal site:
-
-http://www.dominique-ubersfeld.com/JAVADEV/SpringDevelopment.html
-
-As a reference book I mainly used Java for Web Applications by Nicholas S. Williams
-
-Note: this project was run on my home computer. To run it on your system you have to edit some files to customize them to your actual file system. They are:
-
-source/production/resources/install.properties: photoTempDir=/home/dominique/Pictures/tmp/
-
-source/production/resources/log4j2.xml: &lt;RollingFile name="WroxFileAppender" fileName="/home/dominique/logs/application.log"
-                                     filePattern="/home/dominique/logs/application-%d{MM-dd-yyyy}-%i.log"&gt;
-
-where the folder /home/dominique should be replaced by a folder that matches your own file system.
-
-This project can be deployed on Tomcat with the context root: 
-
-localhost:8080/movies-web
-
 
 Note on authorities:
 
@@ -78,7 +53,24 @@ Moreover any new user can register and be granted the only VIEW and CHAT authori
 
 Note that a given user is only allowed a single connection to a given chatroom, i.e. he cannot connect at the same time from two different IPs such as a desktop and a smartphone.
 
-In addition to the previous version any pair of users connected to the same static chat room can agree to create on the fly their own private chat session using a handshake protocol. This private session is only visible to the two users who created it. Like the static chat rooms it is bsed on WebSockets using Spring support and Javascript for the remote endpoint implementation. 
+In addition to the previous version any pair of users connected to the same static chat room can agree to create on the fly their own private chat session using a handshake protocol. This private session is only visible to the two users who created it. Like the static chat rooms it is based on WebSockets using STOMP protocol. 
+
+To launch the demo run the command `mvn spring-boot:run` in project directory. When the application has started open a browser and hit URL `localhost:8080/movies-web`.
+
+Here are some screen shots that can be seen when playing with chat rooms:
+
+Main chatroom page:
+![alt text](images/mainChat.png "Main chat room page")
+
+Private chat request accepted:
+![alt text](images/privateChatAccept.png "Private chat request accepted")
+
+Private chat welcome page:
+![alt text](images/privateChat.png "Private chat")
+
+Private chat page:
+![alt text](images/privateChat2.png "Private chat")
+
 
 
 Dominique Ubersfeld, Cachan, France 
